@@ -16,6 +16,7 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
     # options
     limit_to_visible = bpy.props.BoolProperty(name='Limit to visible objects', default=True)
     overwrite_existing_materials = bpy.props.BoolProperty(name='Overwrite existing materials', default=True)
+    merge_same_textures = bpy.props.BoolProperty(name='Merge same texures to one material', default=True)
     search_paths = bpy.props.StringProperty(
         name='Texture Dir',
         description='Set addtional texture directories. If there are more than one, separate by comma.'
@@ -23,6 +24,7 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
 
     _image_load_cache = {}
     _search_dirs = []
+    _material_cache = {}
 
     def execute(self, context):
         self.init()
@@ -36,12 +38,16 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
         if self.search_paths != '':
             self._search_dirs.extend(self.search_paths.split(','))
 
+        # clear caches before each run
+        self._material_cache = {}
+        self._image_load_cache = {}
+
     def import_mmdbridge_material(self):
         if self.filepath is None:
             print('Please select a mtl file...')
             return {'CANCELED'}
 
-        # {object_name: {base_color: 'xxx.png'}}
+        # {object_name: {base_color: 'xxx.png', material_name: 'xxxx'}}
         object_material = {}
         current_object_name = None
 
@@ -55,57 +61,81 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
                 object_index = material_splits[1]
                 material_index = material_splits[2]
                 object_name = 'xform_'+ object_index + '_material_' + material_index
-                current_object_name = object_name
                 object_material[object_name] = {}
+                current_object_name = object_name
             elif 'map_Kd' in words[0]:
-                object_material[current_object_name]['base_color'] = words[1]
+                texture_path = words[1]
+                object_material[current_object_name]['base_color'] = texture_path
+
+                if self.merge_same_textures:
+                    path_segments = texture_path.split('/')
+                    image_file_name = path_segments[len(path_segments) - 1]
+                    material_name = image_file_name.split('.')[0]
+                    object_material[current_object_name]['material_name'] = material_name
 
         self.object_material = object_material
 
     def assign_materials(self):
+        # get all available objects
         all_object_names = [
             obj.name 
             for obj in bpy.data.objects 
             if obj.type == 'MESH' and (obj.visible_get() if self.limit_to_visible else True)
         ]
 
-        for object_name in self.object_material:
+        for object_name, material_info in self.object_material.items():
             if object_name in all_object_names:
                 # check if obj already has active materials 
                 if not self.overwrite_existing_materials:
                     if len([m for m in bpy.data.objects[object_name].material_slots if len(m.name) > 0]) > 0:
                         continue
                 
-                # Get material
-                mat = bpy.data.materials.get(object_name)
-                if mat is not None:
-                    bpy.data.materials.remove(mat)
-                # create material
-                mat = bpy.data.materials.new(name=object_name)
-                mat.use_nodes = True
-                nodes = mat.node_tree.nodes
-                links = mat.node_tree.links
-            
-                image_texture = nodes.new(type='ShaderNodeTexImage')
-                image_texture.location = -500,300
+                # Get material begin
+
+                material_name = object_name
+                if 'material_name' in material_info:
+                    material_name = material_info['material_name']
+
+                mat = None
+                if material_name in self._material_cache:
+                    mat = self._material_cache[material_name]
+                else:
+                    mat = bpy.data.materials.get(material_name)
+                    if mat is not None:
+                        bpy.data.materials.remove(mat)
+                    # create material
+                    mat = bpy.data.materials.new(name=material_name)
+                    mat.use_nodes = True
+                    nodes = mat.node_tree.nodes
+                    links = mat.node_tree.links
                 
-                # load images
-                image = self.get_image(self.object_material[object_name]['base_color'])
-                if image is not None:
-                    image_texture.image = image
+                    image_texture = nodes.new(type='ShaderNodeTexImage')
+                    image_texture.location = -500,300
+                    
+                    # load images
+                    image = self.get_image(material_info['base_color'])
+                    if image is not None:
+                        image_texture.image = image
 
-                principled = nodes.get('Principled BSDF')
+                    principled = nodes.get('Principled BSDF')
 
-                links.new(image_texture.outputs[0], principled.inputs[0])
+                    links.new(image_texture.outputs[0], principled.inputs[0])
+                    
+                    self._material_cache[material_name] = mat
+
+                # Get material end
 
                 # Assign it to object
                 # get the obj
+                if mat is None:
+                    continue
+
                 obj = bpy.data.objects[object_name]
                 if obj.data.materials:
                     obj.data.materials[0] = mat
                 else:
                     obj.data.materials.append(mat)
-                
+
     def get_image(self, name):
         # load from cache
         image = None

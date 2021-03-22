@@ -5,3 +5,6 @@
 * Add texture file search directories
 * Add some new options
 
+## CHANGELOG
+
+[CHANGELOG](./CHANGELOG.md)
