@@ -118,8 +118,23 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
                         image_texture.image = image
 
                     principled = nodes.get('Principled BSDF')
+                    material_output = nodes.get('Material Output')
+                    material_output.location = 700,300
+
+                    transparent_node = nodes.new(type='ShaderNodeBsdfTransparent')
+                    transparent_node.location = 100,450
+
+                    mix_shader_node = nodes.new(type='ShaderNodeMixShader')
+                    mix_shader_node.location = 400,300
 
                     links.new(image_texture.outputs[0], principled.inputs[0])
+                    links.new(image_texture.outputs[1], mix_shader_node.inputs[0])
+                    links.new(transparent_node.outputs[0], mix_shader_node.inputs[1])
+                    links.new(principled.outputs[0], mix_shader_node.inputs[2])
+                    links.new(mix_shader_node.outputs[0], material_output.inputs[0])
+
+                    mat.blend_method = 'HASHED'
+                    mat.shadow_method = 'HASHED'
                     
                     self._material_cache[material_name] = mat
 

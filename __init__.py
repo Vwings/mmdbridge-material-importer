@@ -16,7 +16,7 @@ bl_info = {
     "author" : "Vwings",
     "description" : "Import and apply MMDBridge Materails(.mtl).",
     "blender" : (2, 80, 0),
-    "version" : (0, 0, 2),
+    "version" : (0, 0, 3),
     "location" : "File > Import",
     "warning" : "",
     "category" : "Import-Export"

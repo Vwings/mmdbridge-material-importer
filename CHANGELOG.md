@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.3] - 2021-03-24
+
+### Added
+
+- Support alpha textures
+
 ## [0.0.2] - 2021-03-22
 
 ### Added
