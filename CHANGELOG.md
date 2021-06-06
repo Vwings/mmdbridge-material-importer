@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.4] - 2021-06-06
+
+### Fix
+
+- Blender 2.93 support:
+   * Use variable annotations to define properties
+   * Adjust the encoding settings when reading files
+
 ## [0.0.3] - 2021-03-24
 
 ### Added
