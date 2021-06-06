@@ -10,14 +10,14 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
     bl_options = {'PRESET'}
 
     filename_ext = ".mtl"
-    filter_glob = bpy.props.StringProperty(default='*.mtl', options={'HIDDEN'})
-    filepath = bpy.props.StringProperty(subtype='FILE_PATH', options={'HIDDEN'})
 
-    # options
-    limit_to_visible = bpy.props.BoolProperty(name='Limit to visible objects', default=True)
-    overwrite_existing_materials = bpy.props.BoolProperty(name='Overwrite existing materials', default=True)
-    merge_same_textures = bpy.props.BoolProperty(name='Merge same texures to one material', default=True)
-    search_paths = bpy.props.StringProperty(
+    # properties
+    filter_glob: bpy.props.StringProperty(default='*.mtl', options={'HIDDEN'})
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'HIDDEN'})
+    limit_to_visible: bpy.props.BoolProperty(name='Limit to visible objects', default=True)
+    overwrite_existing_materials: bpy.props.BoolProperty(name='Overwrite existing materials', default=True)
+    merge_same_textures: bpy.props.BoolProperty(name='Merge same texures to one material', default=True)
+    search_paths: bpy.props.StringProperty(
         name='Texture Dir',
         description='Set addtional texture directories. If there are more than one, separate by comma.'
     )
@@ -51,27 +51,27 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
         object_material = {}
         current_object_name = None
 
-        mtl_file = open(self.filepath, 'r')
-        for line in mtl_file.readlines():
-            words = line.split();
-            if len(words) < 2:
-                continue
-            elif 'newmtl' in words[0]:
-                material_splits = words[1].split('_')
-                object_index = material_splits[1]
-                material_index = material_splits[2]
-                object_name = 'xform_'+ object_index + '_material_' + material_index
-                object_material[object_name] = {}
-                current_object_name = object_name
-            elif 'map_Kd' in words[0]:
-                texture_path = words[1]
-                object_material[current_object_name]['base_color'] = texture_path
+        with open(self.filepath, mode='r', encoding='cp936', errors='ignore') as mtl_file:
+            for line in mtl_file.readlines():
+                words = line.split();
+                if len(words) < 2:
+                    continue
+                elif 'newmtl' in words[0]:
+                    material_splits = words[1].split('_')
+                    object_index = material_splits[1]
+                    material_index = material_splits[2]
+                    object_name = 'xform_'+ object_index + '_material_' + material_index
+                    object_material[object_name] = {}
+                    current_object_name = object_name
+                elif 'map_Kd' in words[0]:
+                    texture_path = words[1]
+                    object_material[current_object_name]['base_color'] = texture_path
 
-                if self.merge_same_textures:
-                    path_segments = texture_path.split('/')
-                    image_file_name = path_segments[len(path_segments) - 1]
-                    material_name = image_file_name.split('.')[0]
-                    object_material[current_object_name]['material_name'] = material_name
+                    if self.merge_same_textures:
+                        path_segments = texture_path.split('/')
+                        image_file_name = path_segments[len(path_segments) - 1]
+                        material_name = image_file_name.split('.')[0]
+                        object_material[current_object_name]['material_name'] = material_name
 
         self.object_material = object_material
 
