@@ -113,8 +113,11 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
                     image_texture = nodes.new(type='ShaderNodeTexImage')
                     image_texture.location = -500,300
                     
-                    # load images
-                    image = self.get_image(material_info['base_color'])
+                    image = None
+                    # Compatible with objects without textures
+                    if 'base_color' in material_info:
+                        # load images
+                        image = self.get_image(material_info['base_color'])
                     if image is not None:
                         image_texture.image = image
 
