@@ -52,8 +52,9 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
         current_object_name = None
 
         with open(self.filepath, mode='r', encoding='cp936', errors='ignore') as mtl_file:
-            for line in mtl_file.readlines():
-                words = line.split();
+            for line in mtl_file.read().splitlines():
+                # texture name might have space
+                words = line.split(None, 1);
                 if len(words) < 2:
                     continue
                 elif 'newmtl' in words[0]:
