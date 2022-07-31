@@ -85,75 +85,82 @@ class IMPORT_OT_MMDBridgeMaterialImport(bpy.types.Operator, ImportHelper):
         ]
 
         for object_name, material_info in self.object_material.items():
-            if object_name in all_object_names:
+            if object_name not in all_object_names:
+                # ignore objects if it's not visiable or not exist
+                continue
+            
+            
+            if 'base_color' not in material_info:
+                # do not create material for objects without texture
+                continue
+
+            if not self.overwrite_existing_materials and len([m for m in bpy.data.objects[object_name].material_slots if len(m.name) > 0]) > 0:
                 # check if obj already has active materials 
-                if not self.overwrite_existing_materials:
-                    if len([m for m in bpy.data.objects[object_name].material_slots if len(m.name) > 0]) > 0:
-                        continue
+                continue
+            
+            # Get material begin
+
+            material_name = object_name
+            if 'material_name' in material_info:
+                material_name = material_info['material_name']
+
+            mat = None
+            if material_name in self._material_cache:
+                mat = self._material_cache[material_name]
+            else:
+                mat = bpy.data.materials.get(material_name)
+                if mat is not None:
+                    bpy.data.materials.remove(mat)
+                # create material
+                mat = bpy.data.materials.new(name=material_name)
+                mat.use_nodes = True
+                nodes = mat.node_tree.nodes
+                links = mat.node_tree.links
+            
+                image_texture = nodes.new(type='ShaderNodeTexImage')
+                image_texture.location = -500,300
                 
-                # Get material begin
+                image = None
+                # Compatible with objects without textures
+                if 'base_color' in material_info:
+                    # load images
+                    image = self.get_image(material_info['base_color'])
+                if image is not None:
+                    image_texture.image = image
 
-                material_name = object_name
-                if 'material_name' in material_info:
-                    material_name = material_info['material_name']
+                principled = nodes.get('Principled BSDF')
+                material_output = nodes.get('Material Output')
+                material_output.location = 700,300
 
-                mat = None
-                if material_name in self._material_cache:
-                    mat = self._material_cache[material_name]
-                else:
-                    mat = bpy.data.materials.get(material_name)
-                    if mat is not None:
-                        bpy.data.materials.remove(mat)
-                    # create material
-                    mat = bpy.data.materials.new(name=material_name)
-                    mat.use_nodes = True
-                    nodes = mat.node_tree.nodes
-                    links = mat.node_tree.links
+                transparent_node = nodes.new(type='ShaderNodeBsdfTransparent')
+                transparent_node.location = 100,450
+
+                mix_shader_node = nodes.new(type='ShaderNodeMixShader')
+                mix_shader_node.location = 400,300
+
+                links.new(image_texture.outputs[0], principled.inputs[0])
+                links.new(image_texture.outputs[1], mix_shader_node.inputs[0])
+                links.new(transparent_node.outputs[0], mix_shader_node.inputs[1])
+                links.new(principled.outputs[0], mix_shader_node.inputs[2])
+                links.new(mix_shader_node.outputs[0], material_output.inputs[0])
+
+                mat.blend_method = 'HASHED'
+                mat.shadow_method = 'HASHED'
                 
-                    image_texture = nodes.new(type='ShaderNodeTexImage')
-                    image_texture.location = -500,300
-                    
-                    image = None
-                    # Compatible with objects without textures
-                    if 'base_color' in material_info:
-                        # load images
-                        image = self.get_image(material_info['base_color'])
-                    if image is not None:
-                        image_texture.image = image
+                self._material_cache[material_name] = mat
 
-                    principled = nodes.get('Principled BSDF')
-                    material_output = nodes.get('Material Output')
-                    material_output.location = 700,300
+            # Get material end
 
-                    transparent_node = nodes.new(type='ShaderNodeBsdfTransparent')
-                    transparent_node.location = 100,450
+            # Assign it to object
+            # get the obj
+            if mat is None:
+                continue
 
-                    mix_shader_node = nodes.new(type='ShaderNodeMixShader')
-                    mix_shader_node.location = 400,300
-
-                    links.new(image_texture.outputs[0], principled.inputs[0])
-                    links.new(image_texture.outputs[1], mix_shader_node.inputs[0])
-                    links.new(transparent_node.outputs[0], mix_shader_node.inputs[1])
-                    links.new(principled.outputs[0], mix_shader_node.inputs[2])
-                    links.new(mix_shader_node.outputs[0], material_output.inputs[0])
-
-                    mat.blend_method = 'HASHED'
-                    mat.shadow_method = 'HASHED'
-                    
-                    self._material_cache[material_name] = mat
-
-                # Get material end
-
-                # Assign it to object
-                # get the obj
-                if mat is None:
-                    continue
-
-                obj = bpy.data.objects[object_name]
-                if obj.data.materials:
-                    obj.data.materials[0] = mat
-                else:
-                    obj.data.materials.append(mat)
+            obj = bpy.data.objects[object_name]
+            if obj.data.materials:
+                obj.data.materials[0] = mat
+            else:
+                obj.data.materials.append(mat)
 
     def get_image(self, name):
         # load from cache
